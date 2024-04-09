@@ -3,14 +3,29 @@
 
 ## 📝 Project Description
 
-### Harry Ahmed PhD <sup>1</sup>, Nicola Reeve PhD <sup>1</sup>, Ashley Akbari MSc <sup>2</sup>, Victoria Best MSc <sup>2</sup>, Fatemeh Torabi <sup>2</sup>, Rebecca Cannings-John PhD <sup>3</sup>, David Gillespie PhD <sup>3</sup>, Fiona Lugg-widger PhD <sup>3</sup>, K Hughes PhD <sup>4</sup>,  M Wootton <sup>5</sup>  
+### Authors  
+  
+Haroon Ahmed PhD <sup>1</sup>, Nicola Reeve PhD <sup>1</sup>, Ashley Akbari MSc <sup>2</sup>, Victoria Best MSc <sup>2</sup>, Fatemeh Torabi <sup>2</sup>, Rebecca Cannings-John PhD <sup>3</sup>, David Gillespie PhD <sup>3</sup>, Fiona Lugg-widger PhD <sup>3</sup>, Katherine Hughes PhD <sup>4</sup>,  Mandy Wootton <sup>5</sup>  
   
 <sup>1</sup> Division of Population Medicine, Cardiff University, Cardiff, UK <br>
 <sup>2</sup> Population Data Science, Swansea University Medical School, Faculty of Medicine, Health & Life Science, Swansea University, Swansea, UK <br>
 <sup>3</sup> Centre for Trials Research, Cardiff University, Cardiff, UK <br>
 <sup>4</sup> School of Medicine, Division of Population Medicine, Cardiff, UK <br>
 <sup>5</sup> Specialist Antimicrobial Chemotherapy Unit, Public Health Wales, Microbiology Cardiff, University Hospital of Wales, Cardiff, UK
+  
+### Corresponding author  
+Dr Nicola F. Reeve  
+Division of Population Medicine  
+Cardiff University  
+3rd Floor, Neuadd Meirionnydd  
+Heath Park  
+Cardiff  
+CF14 4YS  
+Reeven1@cardiff.ac.uk  
++44(0)29 20687895  
 
+### Summary  
+  
 There is increasing interest in the relationship between acute infections and acute cardiovascular events. Most previous research has focused on understanding whether the risk of acute cardiovascular events increases following a respiratory tract infection. The relationship between urinary tract infections (UTIs) and acute cardiovascular events is less well studied. Therefore, the aim of this study is to determine whether there is a causal relationship between UTI and acute myocardial infarction (MI) or stroke.
 
 ## 🖋 How to cite this work
@@ -46,5 +61,5 @@ This work is licensed under a
 [cc-by-image]: https://i.creativecommons.org/l/by/4.0/88x31.png
 [cc-by-shield]: https://img.shields.io/badge/License-CC%20BY%204.0-lightgrey.svg
 
-This is the github repository to store SQL and R scripts and code lists used for the MISSOURI project lead by Harry Ahmed.
+This is the github repository to store SQL and R scripts and code lists used for the MISSOURI project lead by Haroon Ahmed.
 SAIL project number 0972
