@@ -1,0 +1,317 @@
+---
+title: 'MISSOURI Primary and Secondary Analysis Results'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message=FALSE,warning=FALSE)
+```
+
+```{r Required_Packages}
+library(RODBC)
+library(tcltk)
+library(xlsx)
+library(SCCS)
+library(lubridate)
+library(tidyr)
+library(kableExtra)
+library(ggplot2)
+ theme_set(theme_bw())#sets theme for plots - white background
+```
+
+```{r Connect}
+# connect to SAIL SQL
+getLogin<-function(userName=''){  
+  require(tcltk);  
+  wnd<-tktoplevel();
+  tclVar(userName)->user;
+  tclVar("")->passVar;
+  #Label  
+  
+  #Username box  
+  tkgrid(tklabel(wnd,text="Username:"));  
+  tkgrid(tkentry(wnd,textvariable=user)->passBox);  
+  
+  #Password box  
+  tkgrid(tklabel(wnd,text="Password:"));  
+  tkgrid(tkentry(wnd,textvariable=passVar,show="*")->passBox);  
+  #Hitting return will also submit password  
+  tkbind(passBox,"<Return>",function() tkdestroy(wnd));  
+  #OK button  
+  tkgrid(tkbutton(wnd,text="OK",command=function() tkdestroy(wnd)));  
+  #Wait for user to click OK  
+  tkwait.window(wnd);  
+  password<-tclvalue(passVar);
+  userName<-tclvalue(user);
+  return(c(userName,password));  
+} 
+
+login <- getLogin('reeven') # change user name and provide SAIL password in pop up box 
+channel <- odbcConnect('PR_SAIL',login[1],login[2]) # connect to DB2/SAIL 
+rm(login) # hides password 
+```
+
+```{r ReadData}
+
+#primary
+#stroke
+PriStroke<- sqlQuery(channel, "SELECT * FROM SAILW0972V.V2_VB_STROKE_PRIMARY")
+PriStroke$UTI_DT<-PriStroke$DIAG_DT
+#MI
+PriMI<- sqlQuery(channel, "SELECT * FROM SAILW0972V.V2_VB_MI_PRIMARY")
+PriMI$UTI_DT<-PriMI$DIAG_DT
+
+#secondary 1
+#stroke
+Sec1Stroke<- sqlQuery(channel, "SELECT * FROM SAILW0972V.V2_VB_STROKE_SECANAL1")
+Sec1Stroke$UTI_DT<-Sec1Stroke$DIAG_DT
+#MI
+Sec1MI<- sqlQuery(channel, "SELECT * FROM SAILW0972V.V2_VB_MI_SECANAL1")
+Sec1MI$UTI_DT<-Sec1MI$DIAG_DT
+
+#secondary 2
+#stroke
+Sec2Stroke<- sqlQuery(channel, "SELECT * FROM SAILW0972V.V2_VB_STROKE_SECANAL2")
+#MI
+Sec2MI<- sqlQuery(channel, "SELECT * FROM SAILW0972V.V2_VB_MI_SECANAL2")
+
+#secondary 3
+#stroke
+Sec3Stroke<- sqlQuery(channel, "SELECT * FROM SAILW0972V.V2_VB_STROKE_SECANAL3")
+Sec3Stroke$UTI_DT<-Sec3Stroke$DIAG_DT
+#MI
+Sec3MI<- sqlQuery(channel, "SELECT * FROM SAILW0972V.V2_VB_MI_SECANAL3")
+Sec3MI$UTI_DT<-Sec3MI$DIAG_DT
+
+
+```
+
+```{r AnalysisFunc}
+
+analysis<-function(CVE){
+
+#prepare for analysis
+  
+#calculate required variables
+#calculate age at event
+CVE$Age_Event<-as.numeric(CVE$FIRST_EVENT_DT-CVE$WOB)
+#calculate age at UTI
+CVE$UTI<-as.numeric(CVE$UTI_DT-CVE$WOB)
+#calculate age at start of obs
+CVE$Age_Obs_Start<-as.numeric(CVE$INC_START-CVE$WOB)
+#calculate age at end of obs
+CVE$Age_Obs_End<-as.numeric(CVE$INC_END-CVE$WOB)
+#Extract year from event date
+CVE$Event_Year<-year(CVE$FIRST_EVENT_DT)
+#WOB in required format
+CVE$WOBdmy<- as.numeric(paste(format.Date(CVE$WOB, "%d"),format.Date(CVE$WOB, "%m"), year(CVE$WOB),sep=""))
+#age at 2010, for adjusting for year - allows the model to see where the event is in relation to 2010 - first 365 days, second, third etc
+CVE$age2010<-as.numeric(as.Date("2010-01-01")-CVE$WOB)
+#if use stack - individuals with multiple UTIs should have NA in all but first row of age2010. (#doesn't actually make a difference)
+CVE$age2010[duplicated(CVE$ALF_PE)]<-NA
+ 
+#calculate age quartiles 
+age_at_event_q<-floor(quantile(CVE$Age_Event[duplicated(CVE$ALF_PE)==0],seq(0.025,0.975,0.025),names=F)) 
+  
+#run main model - age, season and year adjusted
+CVE.Year<-standardsccs(event~UTI+age2010+relevel(age,ref=21)+season,
+                         indiv=ALF_PE, astart=Age_Obs_Start, 
+                       aend=Age_Obs_End, 
+                       aevent=Age_Event,adrug=cbind(UTI,age2010),
+                       aedrug=cbind(UTI+90,age2010+4018),
+                  expogrp=list(c(-7,0,8,15,29),c(0,365,730,1096,1461,1826,2191,2557,2922,3287,3652)), agegrp=age_at_event_q,
+                         seasongrp=c(0101,0104,0107,0110), dob=WOBdmy,
+                         dataformat = "stack",data=CVE)
+
+#crude model
+CVE.crude<-standardsccs(event~UTI,
+                         indiv=ALF_PE, astart=Age_Obs_Start, 
+                       aend=Age_Obs_End, 
+                       aevent=Age_Event,adrug=UTI,
+                       aedrug=UTI+90,
+                  expogrp=c(-7,0,8,15,29),
+                         dataformat = "stack",data=CVE)
+
+#age adjusted
+CVE.age<-standardsccs(event~UTI+relevel(age,ref=21),
+                         indiv=ALF_PE, astart=Age_Obs_Start, 
+                       aend=Age_Obs_End, 
+                       aevent=Age_Event,adrug=UTI,
+                       aedrug=UTI+90,
+                  expogrp=c(-7,0,8,15,29), agegrp=age_at_event_q,
+                          dataformat = "stack",data=CVE)
+
+# ##############################
+
+#collate results into result table
+
+#tables of coefficients
+#crude
+CrudeTab<-CVE.crude$conf.int[1:5,]
+#coefficients and confidence intervals
+CrudeTab<-paste(round(CrudeTab[,1],2), " (", round(CrudeTab[,3],2), " - ", round(CrudeTab[,4],2),")",sep="")
+
+#age adjusted
+AgeTab<-CVE.age$conf.int[1:5,]
+#coefficients and confidence intervals
+AgeTab<-paste(round(AgeTab[,1],2), " (", round(AgeTab[,3],2), " - ", round(AgeTab[,4],2),")",sep="")
+
+#main - age, season, year adjusted
+YearTab<-CVE.Year$conf.int[1:5,]
+#coefficients and confidence intervals
+YearTab<-paste(round(YearTab[,1],2), " (", round(YearTab[,3],2), " - ", round(YearTab[,4],2),")",sep="")
+
+#calculate total observation time and n events
+#days
+CVE_format<-formatdata(indiv=ALF_PE, astart=Age_Obs_Start, 
+                       aend=Age_Obs_End, 
+                       aevent=Age_Event,adrug=UTI,
+                       aedrug=UTI+90,
+                  expogrp=c(-7,0,8,15,29),
+                         dataformat = "stack",data=CVE)
+timeTab<-aggregate(CVE_format$interval,by=list(RiskPeriod=CVE_format$UTI),FUN=sum, drop=FALSE)
+NEventTab<-aggregate(CVE_format$event,by=list(RiskPeriod=CVE_format$UTI),FUN=sum, drop=FALSE)
+times<-timeTab[,2]
+Nevents<-NEventTab[,2]
+
+ResTab<-matrix(c("Baseline","Pre-Risk", "0-7 days", "8-14 days", "15-28 days", "29-90 days", 
+                 round(Nevents,-1),
+                 times,
+                 1,CrudeTab,
+                 1, AgeTab,
+                 1,YearTab),nrow=6)
+
+ResTab<-data.frame(ResTab)
+colnames(ResTab)<-c("Time period", 
+                    "No Events",
+                    "Total Obs Time (days)", "Crude IRR (95% CI)", "Age Adjusted IRR (95% CI)", "Age, Season and Year adjusted IRR (95% CI)")
+
+ResTab$`Total Obs Time (days)`[ResTab$`No Events`==0]<- round(as.numeric(ResTab$`Total Obs Time (days)`[ResTab$`No Events`==0]),-2)
+
+#plot using ggplot2
+fig<-ggplot(mapping=aes(x=c(-7,-1, 0,7, 8,14, 15,28, 29,90), y=rep(CVE.Year$conf.int[1:5,1],each=2)))+
+  geom_step()+
+  geom_hline(yintercept=1, size=0.4, linetype="dashed")+
+  xlab("Days Since UTI")+ylab("Relative Incidence")+
+  ylim(0,5.2)
+
+
+return(list(ResTab,fig))
+}
+
+```
+
+```{r ResultsFunc}
+
+results<-function(ResMI, ResStroke){
+  
+#MI
+ResMI_kbl<-kbl(ResMI[[1]],caption="MI")
+MIkbl<-kable_styling(kable_input= ResMI_kbl, full_width = F, position = "left", font_size = 12)
+#plot
+MIplot<-ResMI[[2]]+ labs(title="MI")
+
+#stroke
+ResStroke_kbl<-kbl(ResStroke[[1]],caption="Stroke")
+Strokekbl<-kable_styling(kable_input= ResStroke_kbl, full_width = F, position = "left", font_size = 12)
+#plot
+Strokeplot<-ResStroke[[2]]+ labs(title="Stroke")
+
+return(list(MIkbl,MIplot,Strokekbl,Strokeplot))
+
+}
+
+```
+
+# Introduction
+
+This document presents results of the self-controlled case series analysis of acute cardiovascular events (MI and stroke), with UTI as exposure. 
+Number of events are all rounded to the nearest ten. When number of events is <=5, number of events is assigned 0, and total observation time is rounded to the nearest 100.
+
+# Data
+
+Data Tables:  SAILW0972V.V2_VB_STROKE_PRIMARY, SAILW0972V.V2_VB_MI_PRIMARY,
+              SAILW0972V.V2_VB_STROKE_SECANAL1, SAILW0972V.V2_VB_MI_SECANAL1,
+              SAILW0972V.V2_VB_STROKE_SECANAL2, SAILW0972V.V2_VB_MI_SECANAL2,
+                            SAILW0972V.V2_VB_STROKE_SECANAL3, SAILW0972V.V2_VB_MI_SECANAL3
+              
+PEDW Cohort specification is as follows:
+
+- Main Dataset: Patient Episode Database for Wales (PEDW)
+- Date range: 2010-01-01 to 2020-12-31
+- Data cleanse: only records with non-null ALFs with a matching status of 1,4 or 39 are included 
+- Only episodes with a finished episode flag are included
+- Age inclusion: Between 30 and 100 (inclusive) at date of event
+- Geographical inclusion: Welsh resident at date of event
+- Diagnosis inclusion based on agreed ICD-10 codes
+- Event inclusion: First MI and Stroke event for individual within the date range when all other inclusion criteria are met
+
+Of those in the above cohort, include only those who have the agreed UTI and antibiotic Read codes in WLGP, and a urine culture result as appropriate for each definition of UTI.
+
+
+# Primary Analysis
+
+For the primary analysis, the definition of UTI is: a UTI-related Read code in WLGP data, an antibiotic prescription, and a positive urine culture, occurring within a 7-day window.
+
+```{r PriAnalysis}
+PriMIRes<-analysis(PriMI)
+PriStrokeRes<-analysis(PriStroke)
+
+PriRes<-results(PriMIRes,PriStrokeRes)
+PriRes[[1]]
+PriRes[[2]]
+PriRes[[3]]
+PriRes[[4]]
+
+```
+
+
+# Secondary Analysis 1
+
+For secondary analysis 1, the definition of UTI is: a UTI-related Read code in WLGP data, an antibiotic prescription, and a positive urine culture with mixed growth, occurring within a 7-day window.
+
+
+```{r Sec1Analysis}
+
+Sec1MIRes<-analysis(Sec1MI)
+Sec1StrokeRes<-analysis(Sec1Stroke)
+
+
+Sec1Res<-results(Sec1MIRes,Sec1StrokeRes)
+Sec1Res[[1]]
+Sec1Res[[2]]
+Sec1Res[[3]]
+Sec1Res[[4]]
+```
+
+# Secondary Analysis 2
+
+For secondary analysis 2, the definition of UTI is: a UTI-related Read code in WLGP data and an antibiotic prescription, occurring within a 7-day window.
+
+```{r Sec2Analysis}
+
+Sec2MIRes<-analysis(Sec2MI)
+Sec2StrokeRes<-analysis(Sec2Stroke)
+
+Sec2Res<-results(Sec2MIRes,Sec2StrokeRes)
+Sec2Res[[1]]
+Sec2Res[[2]]
+Sec2Res[[3]]
+Sec2Res[[4]]
+```
+
+# Secondary Analysis 3
+
+For secondary analysis 3, the definition of UTI is: a UTI-related Read code in WLGP data, an antibiotic prescription, and a negative urine culture, occurring within a 7-day window.
+
+```{r sec3Analysis}
+
+Sec3MIRes<-analysis(Sec3MI)
+Sec3StrokeRes<-analysis(Sec3Stroke)
+
+Sec3Res<-results(Sec3MIRes,Sec3StrokeRes)
+Sec3Res[[1]]
+Sec3Res[[2]]
+Sec3Res[[3]]
+Sec3Res[[4]]
+```
