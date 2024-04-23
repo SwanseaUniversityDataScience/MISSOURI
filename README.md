@@ -46,7 +46,7 @@ This study makes use of anonymised data held in the Secure Anonymised Informatio
 
 ## 🤝 Project approval
 
-All research has been completed under the permission and approval of the SAIL independent Information Governance Review Panel (IGRP) project number 0911. Further details of this process can be found on the SAIL Databank website (https://saildatabank.com/)
+All research has been completed under the permission and approval of the SAIL independent Information Governance Review Panel (IGRP) project number 0972. Further details of this process can be found on the SAIL Databank website (https://saildatabank.com/)
 
 ## ♻️ License
 
